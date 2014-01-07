@@ -194,7 +194,7 @@ AS_name: %s""" % (self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,s
 [*] Latest Record: Allocation %s			Baseline: Allocation %s
 [*] Latest Record: AS Name %s				Baseline: AS Name %s\r\n\r\n""" % (self.rec2, self.IP_BL, self.Origin_AS_LU, self.Origin_AS_BL, self.IP_LU, self.IP_LU, self.BGP_prefix_LU, self.BGP_prefix_BL, self.CC_LU, self.CC_BL, self.Registry_LU, self.Registry_BL, self.Allocated_LU, self.Allocated_LU, self.AS_Name_LU, self.AS_Name_BL)
 				print self.msg
-				#self.send_email(msg)
+				self.send_email(msg)
 		self.conn.close()	
 		self.cur.close()
 		self.cur2.close()
