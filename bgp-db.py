@@ -18,6 +18,10 @@ try:
                 cur.execute("drop table if exists latest_update")
                 cur.execute("create table latest_update (id int primary key auto_increment, network int, Origin_AS int,  IP varchar(100), BGP_prefix varchar(100), CC varchar(5), Registry varchar(25), Allocated datetime, AS_Name varchar(300), time_stamp timestamp, constraint fk_IP_latest foreign key (network) references watched(id) on update cascade on delete cascade)")
 
+		print "[*] Creating Table emails"
+                cur.execute("drop table if exists emails")
+                cur.execute("create table emails(id int primary key auto_increment, email varchar(100)")
+
 except mysql.Error, e:
 	
 	print "[*] Error %d, %s" % (e.args[0], e.args[1])
