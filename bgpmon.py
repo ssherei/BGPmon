@@ -18,7 +18,7 @@ class start():
 		self.db_user = 'bgpmon'
 		self.db_pass = 'bgpmon'
 		self.db = 'bgpmon'
-		self.fd = open('/var/log/bgpmon','a')
+		sys.stdout = open('/var/log/bgp-mon.log','a')
 		pass
 
 	def sql_conn(self):
