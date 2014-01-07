@@ -7,7 +7,7 @@ import smtplib
 import email.utils
 from email.mime.text import MIMEText
 import sys
-
+import cStringIO
 
 
 
@@ -34,10 +34,26 @@ class start():
 	def sql_populate(self,b=None):
 			
 		if b:
-			self.table = 'baseline'
+			self.table = 'base_line'
 			self.cur = self.conn.cursor()
-			self.cur.execute('select * from %s where ip = (select id from watched where network = %%s' % self.table)
-	
+				
+			self.cur.execute('select * from %s where IP = (select id from watched where network = %%s)' % self.table (self.IP))
+			if not self.cur.fetchone():
+				self.cur.execute('insert into %s (network) values (select id from watched where network = %%s)' % self.table, (self.IP))
+			self.conn.commit()	
+		
+		else:
+			self.table = 'latest_update'
+                        self.cur = self.conn.cursor()
+
+			print '[*] Adding Entry to latest_update'
+                        self.cur.execute('insert into %s (network,Origin_AS,IP,BGP_prefix,CC,Registry,Allocated,AS_Name) values ((select id from watched where network like %%s),%%s,%%s,%%s,%%s,%%s,%%s,%%s)' % self.table, (self.IP,self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,self.Allocated,self.AS_name))
+                        self.conn.commit()
+			
+			
+		self.cur.close()
+
+
 	def magic(self, b=None):
 
 		self.sql_conn()
@@ -57,7 +73,30 @@ class start():
 			sys.exit(1)
 		self.connection.send(self.buffer)
 		self.reply = self.connection.recv(2048)
-		print self.reply
+		self.reply = cStringIO.StringIO(self.reply)
+		self.reply = self.reply.readlines()
+		for self.item in self.reply[1:]:
+			self.data = self.item.split('|')
+			self.origin_AS  = self.data[0].strip()
+			self.IP  = self.data[1].strip()
+			self.BGP_prefix = self.data[2].strip()
+			self.CC = self.data[3].strip()
+			self.Registry = self.data[4].strip()
+			self.Allocated = self.data[5].strip()
+			self.AS_name = self.data[6].strip()
+			print """
+Origin AS: %s
+IP: %s
+BGP_prefix: %s
+CC: %s
+Registr: %s
+Allocated: %s
+AS_name: %s""" % (self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,self.Allocated,self.AS_name)
+			if b:
+				self.sql_populate(b)
+			else:
+				self.sql_populate()
+		self.conn.close()
 
 c  = start()
 c.magic()	
