@@ -66,7 +66,6 @@ class start():
 		for self.query in self.cur:
 			self.index = self.buffer.index('end')
 			self.buffer = self.buffer[0:self.index] + self.query[0] + '\r\n' + self.buffer[self.index:]
-#			print self.buffer
 		self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		try:
 			self.connection.connect(('whois.cymru.com',43))
@@ -215,6 +214,7 @@ if p.baseline and not p.check and not p.email and not p.ip:
 if not p.baseline and not p.check and not p.email and not p.ip:
 	
 	c.magic()	
+	c.checking()	
 
 if p.check and not p.baseline and not p.email and not p.ip:
 	
