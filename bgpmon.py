@@ -117,7 +117,7 @@ AS_name: %s""" % (self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,s
                 self.cur = self.conn.cursor()
                 self.cur.execute("insert into watched (network) values (%s)",self.network)
                 self.conn.commit()
-                print "[*] Adding IP %s to table\r\n" % self.domain
+                print "[*] Adding IP %s to table\r\n" % self.network
                 self.cur.close()
                 self.conn.close()
 
@@ -224,6 +224,8 @@ if p.email and not p.baseline and not p.check and not p.ip:
 
 	c.add_email(p.email)
 
-if p.ip and not p.baeline and not p.check and not p.email:
+if p.ip and not p.baseline and not p.check and not p.email:
 
 	c.add_ip(p.ip)
+	c.magic(p.baseline)
+
