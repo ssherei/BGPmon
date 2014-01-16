@@ -8,6 +8,7 @@ import email.utils
 from email.mime.text import MIMEText
 import sys
 import cStringIO
+import time
 
 
 
@@ -18,7 +19,7 @@ class start():
 		self.db_user = 'bgpmon'
 		self.db_pass = 'bgpmon'
 		self.db = 'bgpmon'
-#		sys.stdout = open('/var/log/bgp-mon.log','a')
+		sys.stdout = open('/var/log/bgp-mon.log','a')
 		pass
 
 	def sql_conn(self):
@@ -37,24 +38,57 @@ class start():
 			self.table = 'base_line'
 			self.cur = self.conn.cursor()
 				
-			self.cur.execute('select * from %s where network = (select id from watched where network = %%s)' % self.table, (self.IP))
+			self.cur.execute("select * from %s where network = (select id from watched where network = %%s)" % self.table, (self.info))
 			if self.cur.fetchone() == None:
-				self.cur.execute('insert into %s (network) values ((select id from watched where network = %%s))' % self.table, (self.IP))
+
+				self.cur.execute("insert into %s (network) values ((select id from watched where network = %%s))" % self.table, (self.info))
+
+				self.cur.execute("update %s set Origin_AS = %%s, IP = %%s, BGP_prefix = %%s, CC = %%s, Registry = %%s, Allocated = %%s, AS_Name = %%s, time_stamp=NOW() where network = (select id from watched where network = %%s)" % self.table, (self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,self.Allocated,self.AS_name,self.info))
+
 			else:
-				self.cur.execute('update %s set Origin_AS = %%s, IP = %%s, BGP_prefix = %%s, CC = %%s, Registry = %%s, Allocated = %%s, AS_Name = %%s, time_stamp=NOW() where network = (select id from watched where network = %%s)' % self.table, (self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,self.Allocated,self.AS_name,self.IP))
+				self.cur.execute("update %s set Origin_AS = %%s, IP = %%s, BGP_prefix = %%s, CC = %%s, Registry = %%s, Allocated = %%s, AS_Name = %%s, time_stamp=NOW() where network = (select id from watched where network = %%s)" % self.table, (self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,self.Allocated,self.AS_name,self.info))
+			
 			self.conn.commit()
-		self.conn.close()
-		self.cur.close()
+		
 		else:
 			self.table = 'latest_update'
                         self.cur = self.conn.cursor()
 
 			print '[*] Adding Entry to latest_update'
-                        self.cur.execute('insert into %s (network,Origin_AS,IP,BGP_prefix,CC,Registry,Allocated,AS_Name) values ((select id from watched where network like %%s),%%s,%%s,%%s,%%s,%%s,%%s,%%s)' % self.table, (self.IP,self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,self.Allocated,self.AS_name))
-                        self.conn.commit()
+                        self.cur.execute("insert into %s (network,Origin_AS,IP,BGP_prefix,CC,Registry,Allocated,AS_Name) values ((select id from watched where network like %%s),%%s,%%s,%%s,%%s,%%s,%%s,%%s)" % self.table, (self.info,self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,self.Allocated,self.AS_name))
+                
+			self.conn.commit()
 			
-		self.conn.close()
-		self.cur.close()
+	def myrecv(self,timeout=2):
+		# make socket non-blocking i.e. if no data is recieved break connection
+		self.connection.setblocking(0)	
+		# total data in an array
+		self.total_reply=[]
+		self.rdata= ''
+		#begining time
+		self.begin=time.time()
+		while True:
+			# if we get some data, then break after time out
+			if self.total_reply and time.time()-self.begin>timeout:
+				break
+			# if we didnt get any data break after timeout*2
+			elif time.time()-self.begin>timeout*2:
+				break
+			# recive data
+			try:
+				self.rdata = self.connection.recv(2048)
+				if self.rdata:
+					self.total_reply.append(self.rdata)
+					#reset the begining time
+					self.begin = time.time()
+				else:
+					# sleep for sometime to indicate gap
+					time.sleep(0.1)
+			except:
+				pass
+		#join all parts to make final reply
+		return ''.join(self.total_reply)
+
 
 	def magic(self, b=None):
 
@@ -65,16 +99,16 @@ class start():
 		print "[*] Querying Team Cymru Whois Server for Orignating AS"
 		for self.query in self.cur:
 			self.index = self.buffer.index('end')
-			self.buffer = self.buffer[0:self.index] + self.query[0] + '\r\n' + self.buffer[self.index:]
+			self.buffer = self.buffer[0:self.index] + self.query[0] + ' ' + self.query[0] + '\r\n' + self.buffer[self.index:]
 		self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		print self.buffer
+	#	print self.buffer
 		try:
 			self.connection.connect(('whois.cymru.com',43))
 		except:
 			print "[*] Communication Error"
 			sys.exit(1)
 		self.connection.send(self.buffer)
-		self.reply = self.connection.recv(2048)
+		self.reply = self.myrecv()
 		self.reply = cStringIO.StringIO(self.reply)
 		self.reply = self.reply.readlines()
 		for self.item in self.reply[1:]:
@@ -85,15 +119,17 @@ class start():
 			self.CC = self.data[3].strip()
 			self.Registry = self.data[4].strip()
 			self.Allocated = self.data[5].strip()
-			self.AS_name = self.data[6].strip()
+			self.info = self.data[6].strip()
+			self.AS_name = self.data[7].strip()
 			print """
+Query: %s
 Origin AS: %s
 IP: %s
 BGP_prefix: %s
 CC: %s
 Registr: %s
 Allocated: %s
-AS_name: %s""" % (self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,self.Allocated,self.AS_name)
+AS_name: %s""" % (self.info, self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,self.Allocated,self.AS_name)
 			if b:
 				self.sql_populate(b)
 			else:
@@ -160,9 +196,9 @@ AS_name: %s""" % (self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,s
 			self.network_BL,self.Origin_AS_BL, self.IP_BL, self.BGP_prefix_BL,self.CC_BL,self.Registry_BL,self.Allocated_BL,self.AS_Name_BL = self.row
 			self.cur2.execute('select MAX(time_stamp) from latest_update where network = %s', (self.network_BL))
 			self.ts = self.cur2.fetchone()
-			self.cur2.execute('select Origin_AS,IP,BGP_prefix,CC,Registry,Allocated,AS_Name from latest_update where network = %s and time_stamp = %s', (self.network_BL, self.ts[0]))
+			self.cur2.execute('select network,Origin_AS,IP,BGP_prefix,CC,Registry,Allocated,AS_Name from latest_update where network = %s and time_stamp = %s', (self.network_BL, self.ts[0]))
 			self.row_latest = self.cur2.fetchone()
-			self.Origin_AS_LU, self.IP_LU, self.BGP_prefix_LU,self.CC_LU,self.Registry_LU,self.Allocated_LU,self.AS_Name_LU = self.row_latest		
+			self.network_LU,self.Origin_AS_LU, self.IP_LU, self.BGP_prefix_LU,self.CC_LU,self.Registry_LU,self.Allocated_LU,self.AS_Name_LU = self.row_latest		
 			
 			if self.reccmp(self.Origin_AS_BL,self.Origin_AS_LU) and\
 			   self.reccmp(self.IP_BL, self.IP_LU) and\
@@ -172,7 +208,7 @@ AS_name: %s""" % (self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,s
 			   self.reccmp(self.Allocated_BL, self.Allocated_LU) and\
 			   self.reccmp(self.AS_Name_BL, self.AS_Name_LU):
 				
-				print "--------Network:%s----------\r\n" % self.IP_LU
+				print "--------Network:%s----------\r\n" % self.network_LU
 				print "[*} Orginating ASN is in baseline: %s" % self.Origin_AS_LU
 				print "[*] Requested IP address is in baseline: %s" % self.IP_LU
 				print "[*] Announced BGP network Prefix is in baseline: %s" % self.BGP_prefix_LU
@@ -192,7 +228,7 @@ AS_name: %s""" % (self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,s
 [*] Latest Record: CounrtyCode %s			Baseline: CountryCode %s
 [*] Latest Record: Registry %s				Baseline: Registry %s
 [*] Latest Record: Allocation %s			Baseline: Allocation %s
-[*] Latest Record: AS Name %s				Baseline: AS Name %s\r\n\r\n""" % (self.rec2, self.IP_BL, self.Origin_AS_LU, self.Origin_AS_BL, self.IP_LU, self.IP_LU, self.BGP_prefix_LU, self.BGP_prefix_BL, self.CC_LU, self.CC_BL, self.Registry_LU, self.Registry_BL, self.Allocated_LU, self.Allocated_LU, self.AS_Name_LU, self.AS_Name_BL)
+[*] Latest Record: AS Name %s				Baseline: AS Name %s\r\n\r\n""" % (self.rec2, self.network_BL, self.Origin_AS_LU, self.Origin_AS_BL, self.IP_LU, self.IP_LU, self.BGP_prefix_LU, self.BGP_prefix_BL, self.CC_LU, self.CC_BL, self.Registry_LU, self.Registry_BL, self.Allocated_LU, self.Allocated_LU, self.AS_Name_LU, self.AS_Name_BL)
 				print self.msg
 				self.send_email(msg)
 		self.conn.close()	
