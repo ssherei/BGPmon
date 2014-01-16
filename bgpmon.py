@@ -18,7 +18,7 @@ class start():
 		self.db_user = 'bgpmon'
 		self.db_pass = 'bgpmon'
 		self.db = 'bgpmon'
-		sys.stdout = open('/var/log/bgp-mon.log','a')
+#		sys.stdout = open('/var/log/bgp-mon.log','a')
 		pass
 
 	def sql_conn(self):
@@ -42,8 +42,9 @@ class start():
 				self.cur.execute('insert into %s (network) values ((select id from watched where network = %%s))' % self.table, (self.IP))
 			else:
 				self.cur.execute('update %s set Origin_AS = %%s, IP = %%s, BGP_prefix = %%s, CC = %%s, Registry = %%s, Allocated = %%s, AS_Name = %%s, time_stamp=NOW() where network = (select id from watched where network = %%s)' % self.table, (self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,self.Allocated,self.AS_name,self.IP))
-			self.conn.commit()	
-		
+			self.conn.commit()
+		self.conn.close()
+		self.cur.close()
 		else:
 			self.table = 'latest_update'
                         self.cur = self.conn.cursor()
@@ -52,9 +53,8 @@ class start():
                         self.cur.execute('insert into %s (network,Origin_AS,IP,BGP_prefix,CC,Registry,Allocated,AS_Name) values ((select id from watched where network like %%s),%%s,%%s,%%s,%%s,%%s,%%s,%%s)' % self.table, (self.IP,self.origin_AS,self.IP,self.BGP_prefix,self.CC,self.Registry,self.Allocated,self.AS_name))
                         self.conn.commit()
 			
-			
+		self.conn.close()
 		self.cur.close()
-
 
 	def magic(self, b=None):
 
@@ -67,6 +67,7 @@ class start():
 			self.index = self.buffer.index('end')
 			self.buffer = self.buffer[0:self.index] + self.query[0] + '\r\n' + self.buffer[self.index:]
 		self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		print self.buffer
 		try:
 			self.connection.connect(('whois.cymru.com',43))
 		except:
