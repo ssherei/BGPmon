@@ -19,7 +19,7 @@ class start():
 		self.db_user = 'bgpmon'
 		self.db_pass = 'bgpmon'
 		self.db = 'bgpmon'
-		sys.stdout = open('/var/log/bgp-mon.log','a')
+#		sys.stdout = open('/var/log/bgp-mon.log','a')
 		pass
 
 	def sql_conn(self):
@@ -191,6 +191,7 @@ AS_name: %s""" % (self.info, self.origin_AS,self.IP,self.BGP_prefix,self.CC,self
 		self.sql_conn()
 		self.cur = self.conn.cursor()
 		self.cur2 = self.conn.cursor()
+		self.cur3 = self.conn.cursor()
 		self.cur.execute('select network,Origin_AS,IP,BGP_prefix,CC,Registry,Allocated,AS_Name from base_line')
 		for self.row in self.cur:
 			self.network_BL,self.Origin_AS_BL, self.IP_BL, self.BGP_prefix_BL,self.CC_BL,self.Registry_BL,self.Allocated_BL,self.AS_Name_BL = self.row
@@ -199,15 +200,36 @@ AS_name: %s""" % (self.info, self.origin_AS,self.IP,self.BGP_prefix,self.CC,self
 			self.cur2.execute('select network,Origin_AS,IP,BGP_prefix,CC,Registry,Allocated,AS_Name from latest_update where network = %s and time_stamp = %s', (self.network_BL, self.ts[0]))
 			self.row_latest = self.cur2.fetchone()
 			self.network_LU,self.Origin_AS_LU, self.IP_LU, self.BGP_prefix_LU,self.CC_LU,self.Registry_LU,self.Allocated_LU,self.AS_Name_LU = self.row_latest		
-			
-			if self.reccmp(self.Origin_AS_BL,self.Origin_AS_LU) and\
-			   self.reccmp(self.IP_BL, self.IP_LU) and\
-			   self.reccmp(self.BGP_prefix_BL, self.BGP_prefix_LU) and\
-			   self.reccmp(self.CC_BL, self.CC_LU) and\
-			   self.reccmp(self.Registry_BL, self.Registry_LU) and\
-			   self.reccmp(self.Allocated_BL, self.Allocated_LU) and\
-			   self.reccmp(self.AS_Name_BL, self.AS_Name_LU):
-				
+			self.diff = False		
+			if not self.reccmp(self.Origin_AS_BL,self.Origin_AS_LU):
+				self.diff = True
+				self.dtype = 'Origin_AS'
+				self.diff_rec = self.Origin_AS_LU	
+			elif not self.reccmp(self.IP_BL, self.IP_LU):
+				self.diff = True
+				self.dtype = 'IP'
+				self.diff_rec = self.IP.LU
+			elif not self.reccmp(self.BGP_prefix_BL, self.BGP_prefix_LU):
+				self.diff = True
+				self.dtype = 'BGP_prefix'
+				self.diff_rec = self.BGP_prefix_LU
+			elif not self.reccmp(self.CC_BL, self.CC_LU):
+				self.diff = True
+				self.dtype = 'CC'
+				self.diff_rec = self.CC_LU
+			elif not self.reccmp(self.Registry_BL, self.Registry_LU):
+				self.diff = True
+				self.dtype = 'Registry'
+				self.diff_rec = self.Registry_LU
+			elif not self.reccmp(self.Allocated_BL, self.Allocated_LU):
+				self.diff = True
+				self.dtype = 'Allocated'
+				self.diff_rec = self.Allocated_LU
+			elif not self.reccmp(self.AS_Name_BL, self.AS_Name_LU):
+				self.diff = True
+				self.dtype = 'AS_Name'
+				self.diff_rec = self.AS_Name_LU
+			else:	
 				print "--------Network:%s----------\r\n" % self.network_LU
 				print "[*} Orginating ASN is in baseline: %s" % self.Origin_AS_LU
 				print "[*] Requested IP address is in baseline: %s" % self.IP_LU
@@ -217,24 +239,93 @@ AS_name: %s""" % (self.info, self.origin_AS,self.IP,self.BGP_prefix,self.CC,self
 				print "[*] Date of Allocation is in baseline: %s" % self.Allocated_LU
 				print "[*] AS Name is in baseline: %s\r\n\r\n" % self.AS_Name_LU
 
-			else:
+			if self.diff:
 			
 				self.msg = """
 -------- Different Entry: %s ------ Network: %s ---------
 [*] Error Matching Record to Baseline
-[*] Latest Record: Origin ASN %s			Baseline: Origin ASN %s
-[*] Latest Record: IP %s				Baseline: IP %s
-[*] Latest Record: BGP Prefix %s			Baseline: BGP Prefix %s
-[*] Latest Record: CounrtyCode %s			Baseline: CountryCode %s
-[*] Latest Record: Registry %s				Baseline: Registry %s
-[*] Latest Record: Allocation %s			Baseline: Allocation %s
-[*] Latest Record: AS Name %s				Baseline: AS Name %s\r\n\r\n""" % (self.rec2, self.network_BL, self.Origin_AS_LU, self.Origin_AS_BL, self.IP_LU, self.IP_LU, self.BGP_prefix_LU, self.BGP_prefix_BL, self.CC_LU, self.CC_BL, self.Registry_LU, self.Registry_BL, self.Allocated_LU, self.Allocated_LU, self.AS_Name_LU, self.AS_Name_BL)
-				print self.msg
-				self.send_email(self.msg)
+[*] Latest Record: Origin ASN %s, Baseline: Origin ASN %s
+[*] Latest Record: IP %s, Baseline: IP %s
+[*] Latest Record: BGP Prefix %s, Baseline: BGP Prefix %s
+[*] Latest Record: CounrtyCode %s, Baseline: CountryCode %s
+[*] Latest Record: Registry %s, Baseline: Registry %s
+[*] Latest Record: Allocation %s, Baseline: Allocation %s
+[*] Latest Record: AS Name %s, Baseline: AS Name %s\r\n\r\n""" % (self.rec2, self.network_BL, self.Origin_AS_LU, self.Origin_AS_BL, self.IP_LU, self.IP_LU, self.BGP_prefix_LU, self.BGP_prefix_BL, self.CC_LU, self.CC_BL, self.Registry_LU, self.Registry_BL, self.Allocated_LU, self.Allocated_LU, self.AS_Name_LU, self.AS_Name_BL)
+			#	self.send_email(self.msg)
+				self.done =  False
+				self.cur3.execute("select %s,network from latest_update where network=%%s and time_stamp != %%s" % self.dtype, (self.network_LU,self.ts[0]))
+				for self.r in self.cur3:
+					self.check, self.hack = self.r
+					if self.reccmp(self.check,self.diff_rec):
+						self.done = True
+				if self.done:
+					self.cur3.execute("select network,diff_type,diff_rec from validate where network=(select network from watched where id=%s) and diff_type=%s and diff_rec=%s", (self.network_LU, self.dtype, self.diff_rec))
+					if self.cur3.fetchone() == None:
+						self.cur3.execute("insert into validate (network,diff_type,diff_rec) values ((select network from watched where id =%s),%s,%s)", (self.network_LU, self.dtype, self.diff_rec))
+						self.conn.commit()
+						print "[*] Differene already alerted Adding New %s Record to validation table: %s" % (self.dtype,self.diff_rec)
+					else:
+						print "[*] Item Already in Validation Table"
+				else:
+					print "Aleeeeeeeeeeeeeeerrrrrrrrrrrt!!!!"
+					print self.msg
+					self.send_email(self.msg)
 		self.conn.close()	
 		self.cur.close()
 		self.cur2.close()
+		self.cur3.close()
 
+	def validate(self,d=None):
+	
+		self.answer = False
+		self.sql_conn()
+		self.cur = self.conn.cursor()
+	
+		if d:
+			self.d = d
+			self.cur.execute("select id,network, diff_type, diff_rec from validate where network = (select id from watched where netowrk = %s)", self.d)
+			print "[*] Gathering Entries that need validation from database for domain: %s" % self.d
+		else:
+			self.cur.execute("select id,network,diff_type,diff_rec from validate")
+			print "[*] Gathering Entries that need validation for all QUERIES"
+	
+		if not self.cur.fetchone():
+			print "[*] No Entries Found for specified query"
+		else:
+			for self.r in self.cur:
+	
+				self.id_v,self.network_v, self.dtype_v, self.diff_rec_v = self.r
+				self.cur.execute("select network from watched where id = %s", self.network_v)
+				self.d = self.cur.fetchone()[0]
+				print "[*] Entry for network %s Different Record %s for Type %s" % (self.d, self.diff_rec_v, self.dtype_v)
+				print "[*] please enter choice [Y]Yes, [N]No"
+				self.question = raw_input("Validate Entry? ")
+				while not self.answer:
+					if self.question == 'Y':
+		
+						self.cur.execute("update baseline set %s=case when %s is null then %%s when %s like %%s then %%s else concat_ws(',',%s,%%s) end,time_stamp=now() where netowrk=%s" % (self.dtype_v, self.dtype_v, self.dtype_v, self.dtype_v), (self.diff_rec_v, self.diff_rec_v, self.diff_rec_v, self.diff_rec_v, self.network_v))
+		
+						self.cur.execute("delete from validate where id = %s", self.id_v)
+						print "[*] Malicious Entry Validated"
+						print "[*] New Entry Added to Baseline."	
+						self.answer = True
+
+					elif self.question == 'N':
+						self.cur.execute("insert into alert_history(network,diff_type,diff_rec) values (%s,%s,%s)", (self.d, self.dtype_v, self.diff_rec_v))
+						self.cur.execute("delete from validate where id = %s", self.id_v)
+						self.answer = True
+						self.msg_v = """
+Maliciouss entry found after validation for:
+[*] Domain: %s	
+[*] Query Type: %s
+[*] Malicious Entry: %s""" % (self.d,  self.dtype_v, self.diff_rec_v)
+						print self.msg_v
+						self.send_email(self.msg)
+					else:
+						print "[*] Invalid Choicei,Try again"
+	
+					self.conn.commit()
+					self.cur.close()
 			
 parser  = argparse.ArgumentParser(description = 'BGP Hikack Monitoring', epilog = 'Saif El-Sherei')
 parser.add_argument('-b','--baseline',help = 'Baseline records',action = 'store_true')
